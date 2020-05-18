@@ -1,6 +1,9 @@
 import { h, render } from 'preact-cycle';
 
+const wsServers = ['wysws.chan.best'];
+
 const ws = new WebSocket(`ws:\\${location.hostname}:7331`);
+// const ws = new WebSocket(`wss:\\${wsServers[0]}:7331`);
 
 const commonWords = {
   'the': true, 
@@ -43,7 +46,7 @@ const nSkipWordPairCounts = {0: {}, 1: {}, 2: {}, 3: {}, 4: {}, 5: {}};
 const wordCounts = {};
 const tweetCounts = {};
 const tweets = [];
-let NOTIFY_TWEETS, NOTIFY_NEW_TWEET;
+let NOTIFY_TWEETS, NOTIFY_NEW_TWEET, NOTIFY_HOME, NOTIFY_HOME_DATA;
 
 const textDecoder = document.createElement('span');
 
@@ -55,6 +58,8 @@ ws.addEventListener('message', event => {
 
   if (type === 'tweets' && NOTIFY_TWEETS) NOTIFY_TWEETS(msg);
   else if (type === 'tweet' && NOTIFY_NEW_TWEET) NOTIFY_NEW_TWEET(msg);
+  else if (type === 'home' && NOTIFY_HOME) NOTIFY_HOME(msg);
+  else if (type === 'home data' && NOTIFY_HOME_DATA) NOTIFY_HOME_DATA(msg);
 });
 
 function logWords (text) {
@@ -77,6 +82,8 @@ const INIT = (_, mutation) => {
   _.inited = true;
   _.mutation = mutation;
 
+  _.home = [];
+  _.users = {};
   _.tweets = tweets;
   _.wordCounts = wordCounts;
   _.tweetCounts = tweetCounts;
@@ -110,6 +117,40 @@ const INIT = (_, mutation) => {
     })();
   };
 
+  NOTIFY_HOME = home => {
+    mutation(() => {
+      for (let i = home.length - 1; i >= 0; i--) {
+        processHomeData(home[i]);
+      }
+    })();
+  };
+
+  NOTIFY_HOME_DATA = data => {
+    mutation(() => {
+      console.log('home data', data);
+      
+      processHomeData(data);
+
+      return _;
+    })();
+  };
+
+  function processHomeData (data) {
+    _.home.unshift(data);
+    data.forEach(msg => {
+      const user = (_.users[msg.user.id_str] = _.users[msg.user.id_str] || {tweets: []});
+
+      user.name = msg.user.name;
+      user.screen_name = msg.user.screen_name;
+      // (user.tweets = user.tweets || {})[msg.id_str] = msg;
+      user.tweets.unshift(msg);
+    });
+
+    console.log(_.home);
+
+    _.data_duration = (new Date(data[0].created_at) - new Date(_.home[_.home.length-1][_.home[_.home.length-1].length-1].created_at)) / 1000;
+  }
+
   function orderWordCounts() {
     _.orderedWordCounts = Object.keys(_.wordCounts).filter(word => !commonWords[word.toLowerCase()]).map(word => ({word, count: _.wordCounts[word]})).sort((a, b) => a.count > b.count ? -1 : 1);
   }
@@ -122,7 +163,10 @@ const SET_SCALE = (_, event) => (_.scale = parseInt(event.target.value), _);
 const INIT_GUI = ({}, {inited, mutation}) => inited ? <GUI /> : mutation(INIT)(mutation); 
  
 const GUI = ({}, {scale, mutation}) => (
-  <gui> 
+  <gui>
+    <Users />
+    <Home />
+    <OriginalTweets />
     <WordCounts />
     <tweet-container>
       <controls>
@@ -139,6 +183,32 @@ const GUI = ({}, {scale, mutation}) => (
       <Tweets />
     </tweet-container>
   </gui>
+);
+
+const Users = ({}, {data_duration, users}) => (
+  <users>
+    users
+    <div>{data_duration / 60} minutes</div>
+    {Object.values(users).sort((a, b) => a.tweets.length < b.tweets.length ? 1 : -1).map(user => (
+      <div>
+        {user.name}: {user.tweets.length}
+      </div>
+    ))}
+  </users>
+);
+
+const Home = ({}, {home}) => (
+  <home>
+    home
+    {home.map(data => <segment>{data.map(m => <msg>{m.user.name}: {m.text}</msg>)}</segment>)}
+  </home>
+);
+
+const OriginalTweets = ({}, {home}) => (
+  <home>
+    home
+    {home.map(data => <segment>{data.filter(m => !m.retweeted_status).map(m => <msg>{m.user.name}: {m.text}</msg>)}</segment>)}
+  </home>
 );
 
 const WordCounts = ({}, {orderedWordCounts}) => (

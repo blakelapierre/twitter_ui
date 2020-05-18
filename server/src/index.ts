@@ -2,7 +2,7 @@
 import * as process from 'process';
 
 [`exit`, `SIGINT`, `SIGUSR1`, `SIGUSR2`, `uncaughtException`, `SIGTERM`].forEach(event => {
-  process.addListener(event, cleanUpServer);
+  process.on(<any>event, cleanUpServer);
 });
 
 function cleanUpServer () {
@@ -25,6 +25,13 @@ const keys = {
   token_secret: ACCESS_TOKEN_SECRET
 };
 
+const TwitterKeys = {
+  consumer_key: CONSUMER_API_KEY,
+  consumer_secret: CONSUMER_API_SECRET,
+  access_token_key: ACCESS_TOKEN,
+  access_token_secret: ACCESS_TOKEN_SECRET
+};
+
 const follow = [
   // Trump
   '25073877',
@@ -35,18 +42,83 @@ const follow = [
 ];
 
 import * as TS from 'twitter-stream-api';
+import * as Twitter from 'twitter';
 import * as ws from 'ws';
+import * as https from 'https';
+import * as http from 'http';
 
 import * as fs from 'fs';
 
-const Twitter = new TS(keys, false);
-const Server = new ws.Server({port: port || 7331});
+const cert = `-----BEGIN CERTIFICATE-----
+MIIEnTCCA4WgAwIBAgITYLr/Jvzfx2x7kTJd3NOqi7SyPDANBgkqhkiG9w0BAQsF
+ADCBizELMAkGA1UEBhMCVVMxGTAXBgNVBAoTEENsb3VkRmxhcmUsIEluYy4xNDAy
+BgNVBAsTK0Nsb3VkRmxhcmUgT3JpZ2luIFNTTCBDZXJ0aWZpY2F0ZSBBdXRob3Jp
+dHkxFjAUBgNVBAcTDVNhbiBGcmFuY2lzY28xEzARBgNVBAgTCkNhbGlmb3JuaWEw
+HhcNMjAwMTIwMjA1NTAwWhcNMzUwMTE2MjA1NTAwWjBiMRkwFwYDVQQKExBDbG91
+ZEZsYXJlLCBJbmMuMR0wGwYDVQQLExRDbG91ZEZsYXJlIE9yaWdpbiBDQTEmMCQG
+A1UEAxMdQ2xvdWRGbGFyZSBPcmlnaW4gQ2VydGlmaWNhdGUwggEiMA0GCSqGSIb3
+DQEBAQUAA4IBDwAwggEKAoIBAQC/GbLXQYZKenIrkLwkRrmIN0yrUp6mPz2nPZcn
++SyAyCfiUsxqqeBHBDQW/CE8IGcWkqcEYWVhxVabkr/hFYNYq8p0gf/f3nUFN/Kf
+XiNdTy8MiS64wyG0RyBL9gAxTV4SlfnGpNN6NhS9g0j67etl1a/QgFwaUWspi70X
+GP7nwKdBmABwykqYGvNtpTgx4HpVuR5u+1Hg+hxwPQDnPWDRjPSexX3s+Fgd5Nko
+pdQ+MOb0VGp7c3nIusl6WPmlkx0bNg4vRgq+/pYHqK9Iz93E4A2xiJMX+vD+KlX+
+gfTOCxtAtKfyUVhOEO7JLi6A8kq+Htk6U6r1IK9mK23Reo7rAgMBAAGjggEgMIIB
+HDAOBgNVHQ8BAf8EBAMCBaAwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUFBwMB
+MAwGA1UdEwEB/wQCMAAwHQYDVR0OBBYEFEy6ujuLKYLIcKUEAZJIJh2VDaupMB8G
+A1UdIwQYMBaAFCToU1ddfDRAh6nrlNu64RZ4/CmkMEAGCCsGAQUFBwEBBDQwMjAw
+BggrBgEFBQcwAYYkaHR0cDovL29jc3AuY2xvdWRmbGFyZS5jb20vb3JpZ2luX2Nh
+MCEGA1UdEQQaMBiCCyouY2hhbi5iZXN0ggljaGFuLmJlc3QwOAYDVR0fBDEwLzAt
+oCugKYYnaHR0cDovL2NybC5jbG91ZGZsYXJlLmNvbS9vcmlnaW5fY2EuY3JsMA0G
+CSqGSIb3DQEBCwUAA4IBAQBpY9EP9QzlxsBar5kVseY7Pa8efLDOk1ifPXnpGAao
+c6j2lUz8PbC4d5kN4HxnAvt7BsCTw2ILcBnEiTpX0c04+BHMyuuNcYZQj91iRsnM
+km9Y1BmxemCEcKai6m5nGNdRI/68gEpryxdc+X/qtwoUXS/j8nEKNgXtWX5a6Gi3
+QqRNGP12AHO3JIdFBtBkFSlPguuOvZIvWHTtZzmUu11+9J1PLIP0wZj14CELc682
+uD8ECNuVpGB28pGUdPlLo5eCeAOq2fKzYS1pGNzhM1p12Pr5SOBUfH4xfI0lvhoa
+qFcF44Lmdh5SrfE9Uwq8K5tOaSiAEJH5uRRbjIVFjpFL
+-----END CERTIFICATE-----`,//fs.readFileSync('cert'), 
+      key = `-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC/GbLXQYZKenIr
+kLwkRrmIN0yrUp6mPz2nPZcn+SyAyCfiUsxqqeBHBDQW/CE8IGcWkqcEYWVhxVab
+kr/hFYNYq8p0gf/f3nUFN/KfXiNdTy8MiS64wyG0RyBL9gAxTV4SlfnGpNN6NhS9
+g0j67etl1a/QgFwaUWspi70XGP7nwKdBmABwykqYGvNtpTgx4HpVuR5u+1Hg+hxw
+PQDnPWDRjPSexX3s+Fgd5NkopdQ+MOb0VGp7c3nIusl6WPmlkx0bNg4vRgq+/pYH
+qK9Iz93E4A2xiJMX+vD+KlX+gfTOCxtAtKfyUVhOEO7JLi6A8kq+Htk6U6r1IK9m
+K23Reo7rAgMBAAECggEAD1/JaBDw9V/5fHDF+iMofQF57RSWB+jxlFlbpk8hGfFA
+aDBiGri0/vGjITBCmjw/Hu1Ie408Y0vFhnmdb0XUTddwT8Q/qiqS/or8PX8M2E5t
+ChSlSh8EwKSyP/o4FL9VMKiZMjaDfwMH0yFTR0DJ3eT9oogZINLpDKwd19ReeZV+
+KF/zNYQtit3MSZ8LKtDUoGXahoN38zPYPTzU8CKY/7XhN7ul+HJOvaYwHi5/99vl
+QqLNDcZzbe5h/Mh6BE/sZKNfFcnfhGGDnoQgn44gLQ3ttGCJ8/9ig2SQtOijH/YJ
+iH0TSm1kY+pAhGizNyuazcPdb59hOr9cDM/KwJ8E6QKBgQDeEvYQEJGt9pZUhc2o
+zDhJiVXc/cwNMjlSFoploIDV2og7vh8JY3523R+tYcTm/bJ8dRcteYzLepUmrgKX
+XRMvFgnAkab/ZwJgXQY+y1Zzrs2sKDnVDkpFtl/hkm2P4ZMjq4Y9Hqd8nKZQHBRW
+mFZKUs4KsBn8DeSdAr8lzVO4qQKBgQDcS2U+HLZpc/t5FgyXV6xxHwDEl6nw97De
+G5gKAUEWlzpH0IM4NEyYKEc71Ipx9NRNSlY7++3CgmZpIepQFfVGPVANXwmUsKrP
+JMixbAgHruPOKSKK1glmkDR90ZCRqUlbEXlMSUzvXd9rWNNDrhxa22TZibl1s1/2
+gpopW9OjcwKBgB1ipOy7RIugdYP5sJ0FaO1SHup/KuEUJEGYefe4pVOm9x/wqGq1
+n6Za3DY1Gbj3GQce91ItI1RJhDL6E52z0zYH1IKGw3JITygxJwJoJahpGQ4OxJhM
+q8dNuqI+ngDL+IxfxgOQatkyYU94Z7iNr91l153Sb53KuNWN5305DjsBAoGBAJ/y
+ni/a6Rbn/06Lk9jO74Wy3PvgoqMzNFgP8PRStM+SPd6mpp/IWVSg6hem2l6jRQJZ
+VwN2h8sSowjydw5u4wd8vQL4Xhx3qY19R7qKlcn+Uaj+dPYZMfol+fbgkfcw0vIs
+XcXl8tZZcj6e38XkRPIzGaZZOS8cbjCt4wDki2XBAoGAKWrlSKV7ny+vFgi5xw3E
+KAP2LkDKqaLbxH19St2+jfXv+J+U0VjTfJ0cZx+XvBpEEO2CvEmOvoETZHi2XMBV
+5dVLCjKeCCErDdTe81E+XYFsF2mqqLflLcs/SRqhNLR6cWvaRmiMHd4TPo4YFWeN
+lAZ3mly/e7xheDiqTs8BiPY=
+-----END PRIVATE KEY-----`;//fs.readFileSync('key');
+
+const server = http.createServer()
+// const server = https.createServer({cert, key})
+
+
+const Server = new ws.Server({server});
+
+server.listen(port || 7331);
 
 console.log('listening on', port || 7331);
 
 const wordCounts = {};
 const tweetCounts = {};
 const tweets = []; // store ids as key?
+const home = [];
 
 const nSkipWordPairCounts = {0: {}, 1: {}, 2: {}, 3: {}, 4: {}, 5: {}};
 
@@ -79,48 +151,219 @@ function loadData() {
   }
 }
 
-Twitter.stream('statuses/filter', {follow: follow.join(','), tweet_mode: 'extended'});
+const twitter = new Twitter(TwitterKeys);
+const TwitterStream = new TS(keys, false);
 
-Twitter.on('connection success', event => {
-  console.log('connected', event);
-});
+let since_id;
+// const maxRequestsPerDayPerEndpoint = 100000;
+// const requestFrequency = maxRequestsPerDayPerEndpoint / (24 * 60 * 60);
+const requestFrequency = 1 / 60;
+const requestDelay = 1 / requestFrequency;
 
-Twitter.on('data', data => {
-  const d = JSON.parse(data.toString());
+console.log(requestFrequency, requestDelay);
 
-  if (!d.user) {
-    console.log('unknown data', d);
+start(getHomeTimeline, requestDelay);
 
-    if (d.delete) {
-      const id_str = d.delete.status.id_str;
+function start(fn, delay) {
+  fn();
+  setInterval(fn, delay * 1000);
+}
 
-      if (tweets[id_str]) {
-        delete tweets[id_str];
-        sendToWebSockets(['delete', id_str]);
-      }
-    }
+function getHomeTimeline() {
+  const count = 200;
+  console.log(count, since_id);
+  if (since_id !== undefined) {
+  console.log('getting home timeline');
+    twitter.get('statuses/home_timeline', {count, 'since_id': since_id}, (error, data, response) => {
+      if (error) return console.log('get home_timeline error', error);
+
+      console.log('home data', data);
+
+      if (data.length > 0) since_id = data[data.length - 1].id_str;
+
+      home.unshift(data);
+
+      sendToWebSockets(['home data', data]);
+    });
   }
+  else {
+    console.log('getting home timeline no since_id');
+    twitter.get('statuses/home_timeline', {'count': count}, (error, data, response) => {
+      if (error) return console.log('get home_timeline error', error);
 
-  else if (follow.indexOf(d.user.id_str) >= 0 && d.extended_tweet) {
-    console.log(d);
-    const author = d.user.name;
-    const text = d.extended_tweet.full_text;
+      console.log('home data', data);
 
-    console.log(`${author}: ${text}`);
+      if (data.length > 0) since_id = data[data.length - 1].id_str;
 
-    sendToWebSockets(['tweet', {author, text, logTime: new Date().getTime()}]);
-
-    logWords(text);
-    logTweet(author, text);
-
-    console.log(JSON.stringify({tweetCounts, wordCounts, nSkipWordPairCounts}));
+      home.unshift(data);
+      sendToWebSockets(['home data', data]);
+    });
   }
-});
+}
+
+// let stream;
+// twitter.get('friends/ids', (error, {ids}, response) => {
+//   const count = 100;
+//   console.log('friends', ids.slice(0, count));
+//   console.log(ids.length);
+//   if (stream) stream.destroy();
+
+//   const req = https.request('https://stream.twitter.com/1.1/statuses/filter.json', {
+//     'method': 'POST'
+//   }, response => {
+
+//   })
+
+//     // stream = twitter.stream('statuses/home_timeline', {
+//     // follow: follow.join(','),
+//     // follow: ids.slice(0, count).map(id => id.toString()).join(','), 
+//     //'follow': ids.map(id => id.toString()).join(',')//,
+//     //,'method': 'post'
+//     //tweet_mode: 'extended'
+//   // });
+
+//   stream.on('data', data => {
+//     console.log('twitter data', data);
+
+//     const d = JSON.parse(data.toString());
+
+//     if (!d.user) {
+//       console.log('unknown data', d);
+
+//       if (d.delete) {
+//         const id_str = d.delete.status.id_str;
+
+//         if (tweets[id_str]) {
+//           delete tweets[id_str];
+//           sendToWebSockets(['delete', id_str]);
+//         }
+//       }
+//     }
+
+//     else if (follow.indexOf(d.user.id_str) >= 0 && d.extended_tweet) {
+//       console.log(d);
+//       const author = d.user.name;
+//       const text = d.extended_tweet.full_text;
+
+//       console.log(`${author}: ${text}`);
+
+//       sendToWebSockets(['tweet', {author, text, logTime: new Date().getTime()}]);
+
+//       logWords(text);
+//       logTweet(author, text);
+//     }
+//   });
+
+//   stream.on('error', error => console.error('twitter error', error));
+
+//   // TwitterStream.on('connection aborted', error => console.error('TwitterStream aborted', error));
+//   // TwitterStream.on('connection error network', error => console.error('TwitterStream error network', error));
+//   // TwitterStream.on('connection error stall', error => console.error('TwitterStream error stall', error));
+//   // TwitterStream.on('connection error http', error => console.error('TwitterStream error http', error));
+//   // TwitterStream.on('connection error unknown', error => console.error('TwitterStream error unknown', error));
+//   // TwitterStream.on('connection rate limit', error => console.error('TwitterStream error', error));
+
+//   // TwitterStream.on('connection success', event => {
+//   //   console.log('connected', event);
+//   // });
+
+//   // TwitterStream.on('data', data => {
+//   //   const d = JSON.parse(data.toString());
+
+//   //   if (!d.user) {
+//   //     console.log('unknown data', d);
+
+//   //     if (d.delete) {
+//   //       const id_str = d.delete.status.id_str;
+
+//   //       if (tweets[id_str]) {
+//   //         delete tweets[id_str];
+//   //         sendToWebSockets(['delete', id_str]);
+//   //       }
+//   //     }
+//   //   }
+
+//   //   else if (follow.indexOf(d.user.id_str) >= 0 && d.extended_tweet) {
+//   //     console.log(d);
+//   //     const author = d.user.name;
+//   //     const text = d.extended_tweet.full_text;
+
+//   //     console.log(`${author}: ${text}`);
+
+//   //     sendToWebSockets(['tweet', {author, text, logTime: new Date().getTime()}]);
+
+//   //     logWords(text);
+//   //     logTweet(author, text);
+//   //   }
+//   // });
+// });
+
+// let stream;
+// twitter.get('friends/ids', (error, {ids}, response) => {
+//   const count = 100;
+//   console.log('friends', ids.slice(0, count));
+//   console.log(ids.length);
+//   if (stream) stream.destroy();
+//   stream = TwitterStream.stream('statuses/filter', {
+//     // follow: follow.join(','),
+//     // follow: ids.slice(0, count).map(id => id.toString()).join(','), 
+//     follow: ids.map(id => id.toString()).join(','), 
+//     method: 'post',
+//     tweet_mode: 'extended'
+//   });
+
+//   TwitterStream.on('connection aborted', error => console.error('TwitterStream aborted', error));
+//   TwitterStream.on('connection error network', error => console.error('TwitterStream error network', error));
+//   TwitterStream.on('connection error stall', error => console.error('TwitterStream error stall', error));
+//   TwitterStream.on('connection error http', error => console.error('TwitterStream error http', error));
+//   TwitterStream.on('connection error unknown', error => console.error('TwitterStream error unknown', error));
+//   TwitterStream.on('connection rate limit', error => console.error('TwitterStream error', error));
+
+//   TwitterStream.on('connection success', event => {
+//     console.log('connected', event);
+//   });
+
+//   TwitterStream.on('data', data => {
+//     const d = JSON.parse(data.toString());
+
+//     if (!d.user) {
+//       console.log('unknown data', d);
+
+//       if (d.delete) {
+//         const id_str = d.delete.status.id_str;
+
+//         if (tweets[id_str]) {
+//           delete tweets[id_str];
+//           sendToWebSockets(['delete', id_str]);
+//         }
+//       }
+//     }
+
+//     else if (follow.indexOf(d.user.id_str) >= 0 && d.extended_tweet) {
+//       console.log(d);
+//       const author = d.user.name;
+//       const text = d.extended_tweet.full_text;
+
+//       console.log(`${author}: ${text}`);
+
+//       sendToWebSockets(['tweet', {author, text, logTime: new Date().getTime()}]);
+
+//       logWords(text);
+//       logTweet(author, text);
+//     }
+//   });
+// });
+
+
+
+
 
 Server.on('connection', socket => {
   console.log('ws connection');
-  console.log('sending tweets', tweets);
-  if (socket.readyState === ws.OPEN) socket.send(JSON.stringify(['tweets', tweets]));
+  if (socket.readyState === ws.OPEN) {
+    socket.send(JSON.stringify(['tweets', tweets]));
+    socket.send(JSON.stringify(['home', home]));
+  }
 });
 
 function logTweet (author, text) {
