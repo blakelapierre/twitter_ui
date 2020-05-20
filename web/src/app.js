@@ -119,9 +119,10 @@ const INIT = (_, mutation) => {
 
   NOTIFY_HOME = home => {
     mutation(() => {
-      for (let i = home.length - 1; i >= 0; i--) {
-        processHomeData(home[i]);
-      }
+      processHomeData(home);
+      // for (let i = home.length - 1; i >= 0; i--) {
+      //   processHomeData(home[i]);
+      // }
     })();
   };
 
@@ -165,6 +166,7 @@ const INIT_GUI = ({}, {inited, mutation}) => inited ? <GUI /> : mutation(INIT)(m
 const GUI = ({}, {scale, mutation}) => (
   <gui>
     <Users />
+    <Segments />
     <Home />
     <OriginalTweets />
     <WordCounts />
@@ -197,18 +199,30 @@ const Users = ({}, {data_duration, users}) => (
   </users>
 );
 
+const Segments = ({}, {home}) => (
+  <segments>
+    {home.map(s => <segment title={s.length} style={`height:${s.length}px`}></segment>)}
+  </segments>
+);
+
 const Home = ({}, {home}) => (
   <home>
     home
-    {home.map(data => <segment>{data.map(m => <msg>{m.user.name}: {m.text}</msg>)}</segment>)}
+    {home.map(data => <TweetSegment tweets={data} />)}
   </home>
 );
 
 const OriginalTweets = ({}, {home}) => (
   <home>
-    home
-    {home.map(data => <segment>{data.filter(m => !m.retweeted_status).map(m => <msg>{m.user.name}: {m.text}</msg>)}</segment>)}
+    original tweets (no retweets)
+    {home.map(data => <TweetSegment tweets={data.filter(m => !m.retweeted_status)} />)}
   </home>
+);
+
+const TweetSegment = ({tweets}) => (
+  <segment>
+    {tweets.map(m => <msg>{m.user.name}: {m.full_text || m.text}</msg>)}
+  </segment>
 );
 
 const WordCounts = ({}, {orderedWordCounts}) => (
@@ -236,6 +250,12 @@ const Tweet = ({tweet: {author, text, logTime}}, {scale}) => (
     <text>{text}</text>
     <author>{author}</author>
   </tweet>
+);
+
+const RefreshBar = () => (
+  <refresh-bar>
+
+  </refresh-bar>
 );
 
 render(

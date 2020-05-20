@@ -174,7 +174,7 @@ function getHomeTimeline() {
   console.log(count, since_id);
   if (since_id !== undefined) {
   console.log('getting home timeline');
-    twitter.get('statuses/home_timeline', {count, 'since_id': since_id}, (error, data, response) => {
+    twitter.get('statuses/home_timeline', {count, 'since_id': since_id, 'tweet_mode': 'extended'}, (error, data, response) => {
       if (error) return console.log('get home_timeline error', error);
 
       console.log('home data', data);
@@ -188,7 +188,7 @@ function getHomeTimeline() {
   }
   else {
     console.log('getting home timeline no since_id');
-    twitter.get('statuses/home_timeline', {'count': count}, (error, data, response) => {
+    twitter.get('statuses/home_timeline', {'count': count, 'tweet_mode': 'extended'}, (error, data, response) => {
       if (error) return console.log('get home_timeline error', error);
 
       console.log('home data', data);
@@ -360,10 +360,13 @@ function getHomeTimeline() {
 
 Server.on('connection', socket => {
   console.log('ws connection');
-  if (socket.readyState === ws.OPEN) {
-    socket.send(JSON.stringify(['tweets', tweets]));
-    socket.send(JSON.stringify(['home', home]));
-  }
+
+  home.every(segment => socket.readyState === ws.OPEN ? (socket.send(JSON.stringify(['home', segment])), true) : false);
+  // if (socket.readyState === ws.OPEN) {
+  //   //socket.send(JSON.stringify(['tweets', tweets]));
+  //   //socket.send(JSON.stringify(['home', home]));
+  //   home.forEach(segment => socket.send(JSON.stringify(['home', segment])));
+  // }
 });
 
 function logTweet (author, text) {

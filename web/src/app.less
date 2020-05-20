@@ -16,6 +16,8 @@ gui {
   display: flex;
 
   flex: 1 1 auto;
+
+  overflow-x: auto;
 }
 
 word-counts {
@@ -111,11 +113,37 @@ tweet {
 }
 
 users {
+  flex: 0 1 auto;
+
   overflow-y: auto;
+
+  font-size: 0.9em;
+
+  min-width: 10rem;
+}
+
+segments {
+  flex: 0 0 auto;
+
+  display: block;
+
+  overflow-y: auto;
+
+  segment {
+   display: block;
+
+   width: 2em;
+
+   border: dotted 1px #000;
+  }
 }
 
 home {
+  flex: 0 1 auto;
+
   overflow-y: auto;
+
+  min-width: 15em;
 
   segment {
     display: block;
